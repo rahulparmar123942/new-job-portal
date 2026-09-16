@@ -1,0 +1,15 @@
+# Environment variables
+.env
+.env.*
+
+# Node dependencies and build
+node_modules/
+dist/
+build/
+
+# Editor directories
+.vscode/
+
+# OS generated files
+.DS_Store
+Thumbs.db

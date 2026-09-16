@@ -14,9 +14,6 @@ export const register = async (req, res) => {
                 success: false
             });
         };
-        const file = req.file;
-        const fileUri = getDataUri(file);
-        const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
 
         const user = await User.findOne({ email });
         if (user) {
@@ -27,14 +24,26 @@ export const register = async (req, res) => {
         }
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        let profilePhotoUrl = "";
+        const file = req.file;
+        if (file) {
+            try {
+                const fileUri = getDataUri(file);
+                const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+                profilePhotoUrl = cloudResponse.secure_url;
+            } catch (uploadError) {
+                console.warn("Cloudinary upload failed or not configured:", uploadError.message);
+            }
+        }
+
         await User.create({
             fullname,
             email,
             phoneNumber,
             password: hashedPassword,
             role,
-            profile:{
-                profilePhoto:cloudResponse.secure_url,
+            profile: {
+                profilePhoto: profilePhotoUrl,
             }
         });
 
@@ -43,7 +52,11 @@ export const register = async (req, res) => {
             success: true
         });
     } catch (error) {
-        console.log(error);
+        console.error("Register Error:", error);
+        return res.status(500).json({
+            message: error.message || "Internal server error",
+            success: false
+        });
     }
 }
 export const login = async (req, res) => {
@@ -92,13 +105,17 @@ export const login = async (req, res) => {
             profile: user.profile
         }
 
-        return res.status(200).cookie("token", token, { maxAge: 1 * 24 * 60 * 60 * 1000, httpsOnly: true, sameSite: 'strict' }).json({
+        return res.status(200).cookie("token", token, { maxAge: 1 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'strict' }).json({
             message: `Welcome back ${user.fullname}`,
             user,
             success: true
         })
     } catch (error) {
-        console.log(error);
+        console.error("Login Error:", error);
+        return res.status(500).json({
+            message: error.message || "Internal server error",
+            success: false
+        });
     }
 }
 export const logout = async (req, res) => {
@@ -108,19 +125,27 @@ export const logout = async (req, res) => {
             success: true
         })
     } catch (error) {
-        console.log(error);
+        console.error("Logout Error:", error);
+        return res.status(500).json({
+            message: "Failed to logout",
+            success: false
+        });
     }
 }
 export const updateProfile = async (req, res) => {
     try {
         const { fullname, email, phoneNumber, bio, skills } = req.body;
         
+        let cloudResponse = null;
         const file = req.file;
-        // cloudinary ayega idhar
-        const fileUri = getDataUri(file);
-        const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
-
-
+        if (file) {
+            try {
+                const fileUri = getDataUri(file);
+                cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+            } catch (uploadError) {
+                console.warn("Resume upload failed or Cloudinary not configured:", uploadError.message);
+            }
+        }
 
         let skillsArray;
         if(skills){
@@ -138,16 +163,15 @@ export const updateProfile = async (req, res) => {
         // updating data
         if(fullname) user.fullname = fullname
         if(email) user.email = email
-        if(phoneNumber)  user.phoneNumber = phoneNumber
+        if(phoneNumber) user.phoneNumber = phoneNumber
         if(bio) user.profile.bio = bio
         if(skills) user.profile.skills = skillsArray
       
         // resume comes later here...
-        if(cloudResponse){
+        if(cloudResponse && file){
             user.profile.resume = cloudResponse.secure_url // save the cloudinary url
             user.profile.resumeOriginalName = file.originalname // Save the original file name
         }
-
 
         await user.save();
 
@@ -166,6 +190,10 @@ export const updateProfile = async (req, res) => {
             success:true
         })
     } catch (error) {
-        console.log(error);
+        console.error("UpdateProfile Error:", error);
+        return res.status(500).json({
+            message: error.message || "Failed to update profile",
+            success: false
+        });
     }
 }

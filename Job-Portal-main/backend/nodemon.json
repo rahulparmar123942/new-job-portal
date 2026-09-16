@@ -1,0 +1,12 @@
+{
+  "ext": "js,mjs,cjs,json,env",
+  "watch": [
+    "index.js",
+    "controllers",
+    "middlewares",
+    "models",
+    "routes",
+    "utils",
+    ".env"
+  ]
+}
